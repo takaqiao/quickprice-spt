@@ -23,10 +23,7 @@ namespace QuickPrice.Patches
         public static void Prefix(GridItemView __instance, PointerEventData eventData)
         {
             Plugin.HoveredItem = __instance?.Item;
-            if (Plugin.HoveredItem != null)
-            {
-                Plugin.Log.LogDebug($"鼠标进入物品: {Plugin.HoveredItem.LocalizedName()}");
-            }
+            // 高频路径避免打印日志
         }
     }
 
@@ -47,7 +44,7 @@ namespace QuickPrice.Patches
         public static void Prefix(GridItemView __instance, PointerEventData eventData)
         {
             Plugin.HoveredItem = null;
-            Plugin.Log.LogDebug("鼠标离开物品");
+            // 高频路径避免打印日志
         }
     }
 }

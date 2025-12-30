@@ -29,11 +29,10 @@ namespace QuickPrice.Services
         private PriceDataService() { }
 
         /// <summary>
-        /// 更新价格数据
+        /// 更新价格数据（同步实现保留）
         /// </summary>
         public bool UpdatePrices(bool force = false)
         {
-            // 检查缓存是否过期
             if (!force && _priceCache != null && !ShouldRefresh())
             {
                 return true;
@@ -41,12 +40,9 @@ namespace QuickPrice.Services
 
             try
             {
-                // 根据配置选择动态或静态价格
                 string endpoint = Settings.UseDynamicPrices.Value
                     ? "/showMeTheMoney/getDynamicPriceTable"
                     : "/showMeTheMoney/getStaticPriceTable";
-
-                // Plugin.Log.LogDebug($"正在从服务端获取价格数据: {endpoint}");
 
                 string json = RequestHandler.GetJson(endpoint);
 
@@ -54,8 +50,6 @@ namespace QuickPrice.Services
                 {
                     _priceCache = JsonConvert.DeserializeObject<Dictionary<string, double>>(json);
                     _lastUpdate = DateTime.Now;
-
-                    // Plugin.Log.LogInfo($"✅ 价格数据更新成功: {_priceCache.Count} 个物品");
                     return true;
                 }
                 else
@@ -73,18 +67,17 @@ namespace QuickPrice.Services
 
         /// <summary>
         /// 获取指定物品的价格
+        /// 注意：不再在此触发同步网络加载以避免阻塞主线程。
+        /// 若缓存未初始化，返回 null；调用方应异步触发 UpdatePricesAsync。
         /// </summary>
         public double? GetPrice(string templateId)
         {
-            // 只在首次调用且缓存为空时加载
-            // 避免频繁HTTP请求导致游戏卡顿
             if (_priceCache == null)
             {
-                Plugin.Log.LogWarning("价格缓存未初始化，尝试加载...");
-                UpdatePrices();
+                // 不在这里同步加载。
+                return null;
             }
 
-            // 查询价格
             if (_priceCache?.TryGetValue(templateId, out var price) == true)
             {
                 return price;
@@ -160,29 +153,22 @@ namespace QuickPrice.Services
             // 检查缓存是否过期
             if (!force && _priceCache != null && !ShouldRefresh())
             {
-                // Plugin.Log.LogDebug("价格缓存仍然有效，跳过异步更新");
                 return true;
             }
 
-            // 如果已有更新任务在运行，等待其完成
             if (_updateTask != null && !_updateTask.IsCompleted)
             {
-                // Plugin.Log.LogDebug("价格更新任务已在运行，等待完成...");
                 await _updateTask;
                 return _priceCache != null && _priceCache.Count > 0;
             }
 
-            // 创建新的异步更新任务
             _updateTask = Task.Run(() =>
             {
                 try
                 {
-                    // 根据配置选择动态或静态价格
                     string endpoint = Settings.UseDynamicPrices.Value
                         ? "/showMeTheMoney/getDynamicPriceTable"
                         : "/showMeTheMoney/getStaticPriceTable";
-
-                    // Plugin.Log.LogDebug($"正在异步获取价格数据: {endpoint}");
 
                     string json = RequestHandler.GetJson(endpoint);
 
@@ -190,21 +176,17 @@ namespace QuickPrice.Services
                     {
                         var newCache = JsonConvert.DeserializeObject<Dictionary<string, double>>(json);
 
-                        // 使用锁保护缓存更新
                         lock (_lockObject)
                         {
                             _priceCache = newCache;
                             _lastUpdate = DateTime.Now;
                         }
 
-                        // Plugin.Log.LogInfo($"✅ 价格数据异步更新成功: {_priceCache.Count} 个物品");
                         return true;
                     }
-                    else
-                    {
-                        Plugin.Log.LogWarning("⚠️ 服务端返回空数据");
-                        return false;
-                    }
+
+                    Plugin.Log.LogWarning("⚠️ 服务端返回空数据");
+                    return false;
                 }
                 catch (Exception ex)
                 {

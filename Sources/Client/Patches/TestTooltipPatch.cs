@@ -9,6 +9,7 @@ using SPT.Reflection.Patching;
 using QuickPrice.Config;
 using QuickPrice.Services;
 using QuickPrice.Utils;
+using System.Threading.Tasks;
 
 namespace QuickPrice.Patches
 {
@@ -27,6 +28,14 @@ namespace QuickPrice.Patches
     /// </summary>
     public class PriceTooltipPatch : ModulePatch
     {
+        // 容器计算缓存（短期）
+        private static readonly System.Collections.Generic.Dictionary<string, (double price, DateTime timestamp)> _containerPriceCache
+            = new System.Collections.Generic.Dictionary<string, (double, DateTime)>();
+        private const int ContainerCacheSeconds = 5;
+
+        // 定期清理缓存的简单计时器标志
+        private static DateTime _lastCacheCleanup = DateTime.MinValue;
+
         protected override MethodBase GetTargetMethod()
         {
             // 查找 SimpleTooltip.Show() 方法
@@ -1542,7 +1551,6 @@ namespace QuickPrice.Patches
             var sb = new StringBuilder();
             sb.Append("\n");
 
-            // 获取容器本身价格
             var containerPrice = PriceDataService.Instance.GetPrice(container.TemplateId);
             if (!containerPrice.HasValue)
             {
@@ -1691,6 +1699,7 @@ namespace QuickPrice.Patches
                 sb.Append($"\n实际价值可能更高");
             }
 
+            // 如果这里返回了，说明价格已计算完成
             return sb.ToString();
         }
 

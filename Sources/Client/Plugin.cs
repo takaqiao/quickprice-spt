@@ -10,6 +10,7 @@ using QuickPrice.Services;
 using QuickPrice.Extensions;
 using EFT.Communications;
 using HarmonyLib;
+using EFT.InventoryLogic;
 
 namespace QuickPrice
 {
@@ -19,7 +20,25 @@ namespace QuickPrice
     {
         public static Plugin Instance { get; private set; }
         public static ManualLogSource Log => Instance.Logger;
-        public static EFT.InventoryLogic.Item HoveredItem { get; set; }
+
+        // Use WeakReference for HoveredItem to avoid preventing GC of game objects
+        private static WeakReference<Item> _hoveredItemRef;
+        public static Item HoveredItem
+        {
+            get
+            {
+                if (_hoveredItemRef != null && _hoveredItemRef.TryGetTarget(out var item))
+                    return item;
+                return null;
+            }
+            set
+            {
+                if (value == null)
+                    _hoveredItemRef = null;
+                else
+                    _hoveredItemRef = new WeakReference<Item>(value);
+            }
+        }
 
         // v2.0: 异步初始化标志
         private static bool _isInitializing = false;
