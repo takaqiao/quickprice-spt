@@ -36,6 +36,9 @@ namespace QuickPrice.Patches
         // 定期清理缓存的简单计时器标志
         private static DateTime _lastCacheCleanup = DateTime.MinValue;
 
+        // Threshold to filter out absurd flea prices (e.g., merchant sale listings)
+        private const double MAX_REASONABLE_FLEA_PRICE = 1_000_000_000d; // 1 billion
+
         protected override MethodBase GetTargetMethod()
         {
             // 查找 SimpleTooltip.Show() 方法
@@ -408,6 +411,10 @@ namespace QuickPrice.Patches
             // 总价 = 武器 + 配件
             double totalPrice = weaponPrice.Value + modsPrice;
 
+            // 过滤不合理的大额价格
+            if (!IsReasonableFleaPrice(totalPrice))
+                return "";
+
             // 计算单格价值（用于颜色编码）
             double pricePerSlotForColor = slots > 0 ? totalPrice / slots : totalPrice;
 
@@ -648,6 +655,10 @@ namespace QuickPrice.Patches
             if (!price.HasValue)
                 return "";
 
+            // 过滤不合理的大额价格
+            if (!IsReasonableFleaPrice(price.Value))
+                return "";
+
             // 计算单格价值（用于颜色编码）
             double pricePerSlotForColor = slots > 0 ? price.Value / slots : price.Value;
 
@@ -699,6 +710,10 @@ namespace QuickPrice.Patches
 
             int stackCount = item.StackObjectsCount;
             double totalPrice = unitPrice.Value * stackCount;
+
+            // 过滤不合理的大额价格
+            if (!IsReasonableFleaPrice(totalPrice))
+                return "";
 
             // 计算单格价值（用于颜色编码）
             double pricePerSlotForColor = slots > 0 ? totalPrice / slots : totalPrice;
@@ -1889,6 +1904,11 @@ namespace QuickPrice.Patches
             }
 
             return total;
+        }
+
+        private static bool IsReasonableFleaPrice(double price)
+        {
+            return price > 0 && price < MAX_REASONABLE_FLEA_PRICE;
         }
     }
 }

@@ -20,16 +20,52 @@ namespace QuickPrice.Utils
             if (item == null)
                 return null;
 
-            // 从服务端数据检查（数据在游戏启动时已异步加载）
+            // 1) 优先检查模板自带的可售标记（如果存在）
+            try
+            {
+                var templateProp = item.GetType().GetProperty("Template");
+                if (templateProp != null)
+                {
+                    var template = templateProp.GetValue(item);
+                    if (template != null)
+                    {
+                        // 常见的属性名集合
+                        string[] sellPropNames = { "CanSellOnRagfair", "CanRequireOnRagfair", "CanSell", "CanRequire" };
+
+                        foreach (var name in sellPropNames)
+                        {
+                            var p = template.GetType().GetProperty(name);
+                            if (p != null)
+                            {
+                                try
+                                {
+                                    var v = p.GetValue(template);
+                                    if (v is bool b)
+                                    {
+                                        // 如果模板明确标记不可售，则返回 false
+                                        if (b == false)
+                                            return false;
+                                        // 如果明确可售，继续，但仍需要结合服务端禁售列表
+                                    }
+                                }
+                                catch { }
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            // 2) 从服务端数据检查（数据在游戏启动时已异步加载）
             var isBanned = PriceDataService.Instance.IsRagfairBanned(item.TemplateId);
 
             if (isBanned.HasValue)
             {
-                // 返回反转值：isBanned=true 表示禁售，返回 false(不可售)
+                // isBanned=true 表示被服务器列为禁售
                 return !isBanned.Value;
             }
 
-            // 数据尚未加载完成，默认返回可售
+            // 数据尚未加载完成或没有模板限制，默认返回可售
             return true;
         }
 

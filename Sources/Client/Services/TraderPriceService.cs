@@ -36,6 +36,9 @@ namespace QuickPrice.Services
         /// </summary>
         private static Dictionary<Type, PropertyInfo> _containerPropertyCache = new Dictionary<Type, PropertyInfo>();
 
+        // 最大合理价格阈值（卢布） — 超出则视为异常/卖家列表，忽略
+        private const double MAX_REASONABLE_TRADER_PRICE_ROUBLES = 100_000_000d;
+
         private TraderPriceService() { }
 
         /// <summary>
@@ -47,11 +50,13 @@ namespace QuickPrice.Services
         {
             try
             {
+                if (item == null)
+                    return null;
+
                 // ===== 优化1: 先查缓存 =====
                 string cacheKey = item.TemplateId;
                 if (_priceCache.TryGetValue(cacheKey, out var cachedPrice))
                 {
-                    // Plugin.Log.LogDebug($"💾 命中缓存: {item.LocalizedName()} = {cachedPrice.PriceInRoubles:N0}₽");
                     return cachedPrice;
                 }
 
@@ -63,13 +68,6 @@ namespace QuickPrice.Services
                 {
                     if (!_hasShownInitTip)
                     {
-                        // Plugin.Log.LogInfo("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                        // Plugin.Log.LogInfo("💡 首次使用商人价格功能");
-                        // Plugin.Log.LogInfo("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                        // Plugin.Log.LogInfo("   请打开任意商人界面（如 Prapor、Therapist）");
-                        // Plugin.Log.LogInfo("   然后关闭界面，商人价格功能即可正常使用");
-                        // Plugin.Log.LogInfo("   💡 此步骤每次游戏启动只需执行一次");
-                        // Plugin.Log.LogInfo("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
                         _hasShownInitTip = true;
                     }
                     return null;
@@ -87,42 +85,41 @@ namespace QuickPrice.Services
                         Item itemToPrice;
 
                         // ===== 优化2: 容器检测，避免深拷贝 =====
-                        // 商人只关心容器本体价格，不关心内部物品
-                        // 大容器克隆会复制所有内部物品，造成严重性能问题
                         if (IsContainer(item))
                         {
-                            // 容器：直接使用原物品
-                            // ✅ 避免克隆100+个物品，性能提升100倍
                             itemToPrice = item;
-                            // Plugin.Log.LogDebug($"🚀 容器优化: {item.LocalizedName()} - 跳过克隆");
                         }
                         else
                         {
-                            // 非容器：克隆并设置数量为1（获取单价）
                             itemToPrice = item.CloneItem();
                             itemToPrice.StackObjectsCount = 1;
                         }
 
-                        // 获取商人收购价格
+                        // 获取商人收购价格（商人向玩家收购的价格）
                         var priceStruct = trader.GetUserItemPrice(itemToPrice);
                         if (!priceStruct.HasValue)
                             continue;
 
-                        // 获取价格金额和货币ID
                         int amount = priceStruct.Value.Amount;
-                        MongoID? currencyIdNullable = priceStruct.Value.CurrencyId;
+                        if (amount <= 0)
+                            continue; // 无效价格
 
-                        // 如果货币ID为null，跳过此商人
+                        MongoID? currencyIdNullable = priceStruct.Value.CurrencyId;
                         if (!currencyIdNullable.HasValue)
-                            continue;
+                            continue; // 无货币信息，忽略
 
                         MongoID currencyId = currencyIdNullable.Value;
 
-                        // 获取货币汇率
                         double currencyCourse = GetCurrencyCourse(trader, currencyId);
 
-                        // 计算卢布价格（用于对比）
                         double priceInRoubles = amount * currencyCourse;
+
+                        // ===== 新增校验：忽略不合理的大额值（通常来自商人出售列表或错误数据） =====
+                        if (priceInRoubles <= 0 || priceInRoubles > MAX_REASONABLE_TRADER_PRICE_ROUBLES)
+                        {
+                            // skip unrealistic value
+                            continue;
+                        }
 
                         // 保存最高价格
                         if (highestPrice == null || priceInRoubles > highestPrice.PriceInRoubles)
@@ -144,16 +141,8 @@ namespace QuickPrice.Services
                     }
                 }
 
-                // 如果第一次使用时没有找到价格，给出友好提示
                 if (highestPrice == null && !_hasShownInitTip)
                 {
-                    // Plugin.Log.LogInfo("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                    // Plugin.Log.LogInfo("💡 首次使用商人价格功能");
-                    // Plugin.Log.LogInfo("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                    // Plugin.Log.LogInfo("   请打开任意商人界面（如 Prapor、Therapist）");
-                    // Plugin.Log.LogInfo("   然后关闭界面，商人价格功能即可正常使用");
-                    // Plugin.Log.LogInfo("   此步骤每次游戏启动只需执行一次");
-                    // Plugin.Log.LogInfo("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
                     _hasShownInitTip = true;
                 }
 
@@ -161,7 +150,6 @@ namespace QuickPrice.Services
                 if (highestPrice != null)
                 {
                     _priceCache[cacheKey] = highestPrice;
-                    // Plugin.Log.LogDebug($"💾 保存缓存: {item.LocalizedName()} = {highestPrice.PriceInRoubles:N0}₽");
                 }
 
                 return highestPrice;

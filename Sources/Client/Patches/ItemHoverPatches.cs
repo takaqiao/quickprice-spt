@@ -23,7 +23,24 @@ namespace QuickPrice.Patches
         public static void Prefix(GridItemView __instance, PointerEventData eventData)
         {
             Plugin.HoveredItem = __instance?.Item;
-            // 高频路径避免打印日志
+
+            try
+            {
+                // 如果当前 GridItemView 来自商人/售卖界面（类型名常见为 GoodsItemView 等），尝试标记
+                var viewTypeName = __instance.GetType().Name;
+                if (viewTypeName.Contains("Goods") || viewTypeName.Contains("Trader") || viewTypeName.Contains("Offer"))
+                {
+                    Plugin.HoveredItemFromTrader = true;
+                }
+                else
+                {
+                    Plugin.HoveredItemFromTrader = false;
+                }
+            }
+            catch
+            {
+                Plugin.HoveredItemFromTrader = false;
+            }
         }
     }
 
@@ -44,7 +61,7 @@ namespace QuickPrice.Patches
         public static void Prefix(GridItemView __instance, PointerEventData eventData)
         {
             Plugin.HoveredItem = null;
-            // 高频路径避免打印日志
+            Plugin.HoveredItemFromTrader = false;
         }
     }
 }

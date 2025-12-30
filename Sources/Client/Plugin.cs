@@ -40,6 +40,10 @@ namespace QuickPrice
             }
         }
 
+        // Indicates whether the current hovered item originates from a trader UI (sell listing)
+        // When true, flea market price display should be suppressed
+        public static bool HoveredItemFromTrader { get; set; } = false;
+
         // v2.0: 异步初始化标志
         private static bool _isInitializing = false;
         public static bool IsInitializing => _isInitializing;
@@ -54,14 +58,8 @@ namespace QuickPrice
 
             try
             {
-                // Log.LogInfo("===========================================");
-                // Log.LogInfo("  QuickPrice - Tarkov SPT 4.0.0");
-                // Log.LogInfo($"  版本: {BuildInfo.Version}");
-                // Log.LogInfo("===========================================");
-
                 // 初始化配置
                 Settings.Init(Config);
-                // Log.LogInfo("✅ 中文配置系统初始化成功");
 
                 // v2.0: 启动异步价格数据加载（不阻塞游戏启动）
                 _ = InitializePricesAsync();
@@ -75,13 +73,6 @@ namespace QuickPrice
                 // 注册所有补丁（立即启用）
                 EnableAllPatches();
                 new Harmony("com.QuickPrice.Patches").PatchAll();
-                // Log.LogInfo("===========================================");
-                // Log.LogInfo("  🎉 插件启动完成！");
-                // Log.LogInfo("  ⏳ 价格数据正在后台加载...");
-                // Log.LogInfo("  ⏳ 跳蚤禁售列表正在后台加载...");
-                // Log.LogInfo("  🎮 进入游戏查看物品价格");
-                // Log.LogInfo("  ⚙️  按 F12 打开配置管理器");
-                // Log.LogInfo("===========================================");
             }
             catch (System.Exception ex)
             {
