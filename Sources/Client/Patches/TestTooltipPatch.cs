@@ -70,7 +70,12 @@ namespace QuickPrice.Patches
                 var item = Plugin.HoveredItem;
                 if (item == null)
                 {
-                    // Plugin.Log.LogDebug("HoveredItem 为 null");
+                    return;
+                }
+
+                // 商人出售界面的物品不显示跳蚤价格/工具提示，避免超高价格误判
+                if (Plugin.HoveredItemFromTrader)
+                {
                     return;
                 }
 

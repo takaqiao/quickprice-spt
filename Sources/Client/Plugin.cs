@@ -259,6 +259,8 @@ namespace QuickPrice
                 // 注册物品捕获补丁
                 new GridItemOnPointerEnterPatch().Enable();
                 new GridItemOnPointerExitPatch().Enable();
+                // 注册 UI 悬停清理补丁，避免按钮等控件保留上一个物品的价格
+                new ClearHoveredOnUIEnterPatch().Enable();
                 // Log.LogInfo("✅ 物品捕获补丁已启用");
 
                 // 注册价格显示补丁
